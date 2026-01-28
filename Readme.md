@@ -35,8 +35,8 @@ sensor_data_project/
 │   └── ambient_sensor_data.csv
 │
 ├── scripts/
-│   ├── ambient_sensor_gui.py
-│   ├── ambient_sensor_plots.py
+│   ├── updated_gui.py
+│   ├── updated_sensor_plots.py
 │
 ├── README.md
 
@@ -120,4 +120,5 @@ Intern – Cummins India Pvt. Ltd.
 📌 Conclusion
 
 This project demonstrates a practical, GUI-based approach for analyzing ambient sensor diagnostics using real-world data.
+
 It effectively combines visualization, error detection, and diagnostic indexing in a user-friendly tool suitable for industrial environments.
