@@ -1,136 +1,123 @@
-import matplotlib.pyplot as plt
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import pandas as pd
 
-# ---------------- TIME COLUMN DETECTION ----------------
-def detect_time_column(data):
-    for col in ["Time", "Timestamp", "time", "timestamp"]:
-        if col in data.columns:
-            return col
-    data["Time"] = range(len(data))
-    return "Time"
+from Updated_plot1 import (
+    plot_temperature,
+    plot_fmi,
+    plot_custom_threshold,
+    plot_rowwise_parameter
+)
 
+data = None
 
-# ---------------- CLEAN DATA UNTIL NULL ----------------
-def clean_data_until_null(data, required_columns):
-    for i, row in data.iterrows():
-        if row[required_columns].isnull().any():
-            return data.iloc[:i]
-    return data
-
-
-# ---------------- TEMPERATURE ANALYSIS ----------------
-def plot_temperature(data):
-    time_col = detect_time_column(data)
-    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status"])
-
-    valid = data[data["Sensor_Status"] == "VALID"]
-    error = data[data["Sensor_Status"] != "VALID"]
-
-    plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
-
-    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
-    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
-
-    for _, row in error.iterrows():
-        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
-                 "ERROR", color="red", ha="center")
-
-    plt.title("Temperature Error Analysis")
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Temperature Value")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+# ---------------- LOAD CSV ----------------
+def browse_file():
+    global data
+    path = filedialog.askopenfilename(
+        title="Select CSV File",
+        filetypes=[("CSV Files", "*.csv")]
+    )
+    if path:
+        data = pd.read_csv(path, encoding="cp1252")
+        data.columns = data.columns.str.strip()
+        file_label.config(text=path.split("/")[-1])
 
 
-# ---------------- FMI ANALYSIS ----------------
-def plot_fmi(data):
-    time_col = detect_time_column(data)
-    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status", "Index"])
+# ---------------- DROPDOWN HANDLER ----------------
+def on_option_change(*args):
+    option = selected_option.get()
 
-    valid = data[data["Sensor_Status"] == "VALID"]
-    error = data[data["Sensor_Status"] != "VALID"]
+    threshold_label.pack_forget()
+    threshold_entry.pack_forget()
+    param_label.pack_forget()
+    param_dropdown.pack_forget()
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+    if option == "Threshold Analysis":
+        threshold_label.pack(pady=8)
+        threshold_entry.pack()
 
-    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
-    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
-
-    for _, row in error.iterrows():
-        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
-                 f"ERROR | FMI {row['Index']}", color="red", ha="center")
-
-    plt.title("FMI Diagnostic Analysis")
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Sensor Value")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    elif option == "Row-wise Analysis":
+        param_var.set("Sensor_Status")   # ✅ DEFAULT PARAMETER
+        param_label.pack(pady=8)
+        param_dropdown.pack()
 
 
-# ---------------- THRESHOLD ANALYSIS ----------------
-def plot_custom_threshold(data, threshold):
-    time_col = detect_time_column(data)
-    data = clean_data_until_null(data, ["Sensor_Value"])
+# ---------------- EXECUTE ----------------
+def execute_plot():
+    if data is None:
+        messagebox.showerror("Error", "Please select a CSV file")
+        return
 
-    normal = data[data["Sensor_Value"] <= threshold]
-    fault = data[data["Sensor_Value"] > threshold]
+    option = selected_option.get()
 
-    plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+    if option == "Temperature":
+        plot_temperature(data)
 
-    plt.scatter(normal[time_col], normal["Sensor_Value"], color="blue", label="Below Threshold")
-    plt.scatter(fault[time_col], fault["Sensor_Value"], color="red", label="Above Threshold")
+    elif option == "FMI":
+        plot_fmi(data)
 
-    plt.axhline(threshold, linestyle="--", color="black", label="Threshold")
+    elif option == "Threshold Analysis":
+        plot_custom_threshold(data, float(threshold_entry.get()))
 
-    plt.title("Threshold Analysis")
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Sensor Value")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-# ---------------- ROW-WISE ANALYSIS (DEFAULT = SENSOR_STATUS) ----------------
-def plot_rowwise_parameter(data, parameter="Sensor_Status"):
-    time_col = detect_time_column(data)
-    data = clean_data_until_null(data, [parameter, "Sensor_Status"])
-
-    plt.figure(figsize=(10, 5))
-
-    # If Sensor_Status is selected (DEFAULT)
-    if parameter == "Sensor_Status":
-        valid = data[data["Sensor_Status"] == "VALID"]
-        error = data[data["Sensor_Status"] != "VALID"]
-
-        plt.scatter(valid[time_col], [1]*len(valid), color="blue", label="VALID")
-        plt.scatter(error[time_col], [1]*len(error), color="red", label="ERROR")
-
-        plt.yticks([1], ["Sensor Status"])
-        plt.ylabel("Status")
+    elif option == "Row-wise Analysis":
+        plot_rowwise_parameter(data, param_var.get())
 
     else:
-        valid = data[data["Sensor_Status"] == "VALID"]
-        error = data[data["Sensor_Status"] != "VALID"]
+        messagebox.showerror("Error", "Select an option")
 
-        plt.plot(data[time_col], data[parameter], "--", color="gray")
-        plt.scatter(valid[time_col], valid[parameter], color="blue", label="VALID")
-        plt.scatter(error[time_col], error[parameter], color="red", label="ERROR")
 
-        for _, row in error.iterrows():
-            plt.text(row[time_col], row[parameter] + 0.3,
-                     "ERROR", color="red", ha="center")
+# ---------------- GUI ----------------
+root = tk.Tk()
+root.title("Ambient Sensor Diagnostic Tool")
+root.geometry("820x540")
 
-        plt.ylabel(parameter)
+tk.Label(root, text="Ambient Sensor Diagnostic Tool",
+         font=("Arial", 18, "bold")).pack(pady=20)
 
-    plt.title(f"Row-wise Analysis – {parameter}")
-    plt.xlabel("Time (seconds)")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+tk.Button(root, text="Browse CSV File",
+          font=("Arial", 12), command=browse_file).pack(pady=10)
+
+file_label = tk.Label(root, text="No file selected", font=("Arial", 10))
+file_label.pack()
+
+tk.Label(root, text="Select Parameter",
+         font=("Arial", 12, "bold")).pack(pady=15)
+
+selected_option = tk.StringVar(value="Select Option")
+selected_option.trace_add("write", on_option_change)
+
+tk.OptionMenu(
+    root,
+    selected_option,
+    "Temperature",
+    "FMI",
+    "Threshold Analysis",
+    "Row-wise Analysis"
+).pack()
+
+threshold_label = tk.Label(root, text="Enter Threshold Value")
+threshold_entry = tk.Entry(root)
+
+param_label = tk.Label(root, text="Select Data Parameter")
+param_var = tk.StringVar(value="Sensor_Status")
+
+param_dropdown = tk.OptionMenu(
+    root,
+    param_var,
+    "Sensor_Status",
+    "Sensor_Value",
+    "Index"
+)
+
+tk.Button(root, text="Plot Selected Parameter",
+          font=("Arial", 13, "bold"),
+          bg="lightblue",
+          command=execute_plot).pack(pady=30)
+
+tk.Label(root,
+         text="Note: Please save the plot image before closing the window.",
+         font=("Arial", 9, "italic"),
+         fg="gray").pack(side="bottom", pady=15)
+
+root.mainloop()
