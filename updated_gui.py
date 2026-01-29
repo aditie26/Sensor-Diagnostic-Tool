@@ -1,102 +1,136 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-import pandas as pd
+import matplotlib.pyplot as plt
 
-from updated_plot import (
-    plot_error,
-    plot_fmi,
-    plot_custom_threshold
-)
-
-data = None
-
-# ---------------- FILE SELECTION ----------------
-def browse_file():
-    global data
-    file_path = filedialog.askopenfilename(
-        title="Select Ambient Sensor CSV File",
-        filetypes=[("CSV Files", "*.csv")]
-    )
-
-    if file_path:
-        try:
-            data = pd.read_csv(file_path, encoding="cp1252")
-            data.columns = data.columns.str.strip()
-            file_label.config(text=file_path.split("/")[-1])
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+# ---------------- TIME COLUMN DETECTION ----------------
+def detect_time_column(data):
+    for col in ["Time", "Timestamp", "time", "timestamp"]:
+        if col in data.columns:
+            return col
+    data["Time"] = range(len(data))
+    return "Time"
 
 
-# ---------------- EXECUTE SELECTED OPTION ----------------
-def execute_plot():
-    if data is None:
-        messagebox.showerror("Error", "Please select a CSV file")
-        return
+# ---------------- CLEAN DATA UNTIL NULL ----------------
+def clean_data_until_null(data, required_columns):
+    for i, row in data.iterrows():
+        if row[required_columns].isnull().any():
+            return data.iloc[:i]
+    return data
 
-    option = selected_option.get()
 
-    if option == "Error Plot":
-        plot_error(data)
+# ---------------- TEMPERATURE ANALYSIS ----------------
+def plot_temperature(data):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status"])
 
-    elif option == "FMI Plot":
-        plot_fmi(data)
+    valid = data[data["Sensor_Status"] == "VALID"]
+    error = data[data["Sensor_Status"] != "VALID"]
 
-    elif option == "Custom Threshold Plot":
-        try:
-            threshold = float(threshold_entry.get())
-            plot_custom_threshold(data, threshold)
-        except ValueError:
-            messagebox.showerror("Error", "Enter valid threshold value")
+    plt.figure(figsize=(10, 5))
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+
+    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
+    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
+
+    for _, row in error.iterrows():
+        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
+                 "ERROR", color="red", ha="center")
+
+    plt.title("Temperature Error Analysis")
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Temperature Value")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+# ---------------- FMI ANALYSIS ----------------
+def plot_fmi(data):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status", "Index"])
+
+    valid = data[data["Sensor_Status"] == "VALID"]
+    error = data[data["Sensor_Status"] != "VALID"]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+
+    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
+    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
+
+    for _, row in error.iterrows():
+        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
+                 f"ERROR | FMI {row['Index']}", color="red", ha="center")
+
+    plt.title("FMI Diagnostic Analysis")
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Sensor Value")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+# ---------------- THRESHOLD ANALYSIS ----------------
+def plot_custom_threshold(data, threshold):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value"])
+
+    normal = data[data["Sensor_Value"] <= threshold]
+    fault = data[data["Sensor_Value"] > threshold]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+
+    plt.scatter(normal[time_col], normal["Sensor_Value"], color="blue", label="Below Threshold")
+    plt.scatter(fault[time_col], fault["Sensor_Value"], color="red", label="Above Threshold")
+
+    plt.axhline(threshold, linestyle="--", color="black", label="Threshold")
+
+    plt.title("Threshold Analysis")
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Sensor Value")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+# ---------------- ROW-WISE ANALYSIS (DEFAULT = SENSOR_STATUS) ----------------
+def plot_rowwise_parameter(data, parameter="Sensor_Status"):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, [parameter, "Sensor_Status"])
+
+    plt.figure(figsize=(10, 5))
+
+    # If Sensor_Status is selected (DEFAULT)
+    if parameter == "Sensor_Status":
+        valid = data[data["Sensor_Status"] == "VALID"]
+        error = data[data["Sensor_Status"] != "VALID"]
+
+        plt.scatter(valid[time_col], [1]*len(valid), color="blue", label="VALID")
+        plt.scatter(error[time_col], [1]*len(error), color="red", label="ERROR")
+
+        plt.yticks([1], ["Sensor Status"])
+        plt.ylabel("Status")
 
     else:
-        messagebox.showerror("Error", "Please select a parameter")
+        valid = data[data["Sensor_Status"] == "VALID"]
+        error = data[data["Sensor_Status"] != "VALID"]
 
+        plt.plot(data[time_col], data[parameter], "--", color="gray")
+        plt.scatter(valid[time_col], valid[parameter], color="blue", label="VALID")
+        plt.scatter(error[time_col], error[parameter], color="red", label="ERROR")
 
-# ---------------- GUI WINDOW ----------------
-root = tk.Tk()
-root.title("Ambient Sensor Diagnostic Tool")
-root.geometry("750x450")
+        for _, row in error.iterrows():
+            plt.text(row[time_col], row[parameter] + 0.3,
+                     "ERROR", color="red", ha="center")
 
-tk.Label(root, text="Ambient Sensor Diagnostic Tool",
-         font=("Arial", 18, "bold")).pack(pady=20)
+        plt.ylabel(parameter)
 
-tk.Button(root, text="Browse CSV File",
-          font=("Arial", 12), command=browse_file).pack(pady=10)
-
-file_label = tk.Label(root, text="No file selected", font=("Arial", 10))
-file_label.pack()
-
-# ---------------- DROPDOWN ----------------
-tk.Label(root, text="Select Parameter",
-         font=("Arial", 12, "bold")).pack(pady=15)
-
-selected_option = tk.StringVar()
-selected_option.set("Select Option")
-
-dropdown = tk.OptionMenu(
-    root,
-    selected_option,
-    "Error Plot",
-    "FMI Plot",
-    "Custom Threshold Plot"
-)
-dropdown.config(width=25, font=("Arial", 11))
-dropdown.pack()
-
-# ---------------- THRESHOLD ENTRY ----------------
-tk.Label(root, text="Threshold Value (for Custom Threshold Plot)",
-         font=("Arial", 10)).pack(pady=10)
-
-threshold_entry = tk.Entry(root, width=15, font=("Arial", 11))
-threshold_entry.pack()
-
-# ---------------- PLOT BUTTON ----------------
-tk.Button(
-    root,
-    text="Plot Selected Parameter",
-    font=("Arial", 13, "bold"),
-    bg="lightblue",
-    command=execute_plot
-).pack(pady=30)
-
-root.mainloop()
+    plt.title(f"Row-wise Analysis – {parameter}")
+    plt.xlabel("Time (seconds)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
