@@ -9,81 +9,127 @@ def detect_time_column(data):
     return "Time"
 
 
-# ---------------- ERROR PLOT ----------------
-def plot_error(data):
-    time_col = detect_time_column(data)
+# ---------------- CLEAN DATA UNTIL NULL ----------------
+def clean_data_until_null(data, required_columns):
+    for i, row in data.iterrows():
+        if row[required_columns].isnull().any():
+            return data.iloc[:i]
+    return data
 
-    normal = data[data["Sensor_Status"] == "VALID"]
+
+# ---------------- TEMPERATURE ANALYSIS ----------------
+def plot_temperature(data):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status"])
+
+    valid = data[data["Sensor_Status"] == "VALID"]
     error = data[data["Sensor_Status"] != "VALID"]
 
     plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray", label="Sensor Trend")
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
 
-    plt.scatter(normal[time_col], normal["Sensor_Value"], color="blue", label="Status_Valid")
-    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="Status_Error")
-
-    for _, row in error.iterrows():
-        plt.text(row[time_col], row["Sensor_Value"] + 0.3, "ERROR",
-                 fontsize=9, color="red", ha="center")
-
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Sensor Value")
-    plt.title("Ambient Sensor – Error Plot")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-
-# ---------------- FMI PLOT ----------------
-def plot_fmi(data):
-    time_col = detect_time_column(data)
-
-    normal = data[data["Sensor_Status"] == "VALID"]
-    error = data[data["Sensor_Status"] != "VALID"]
-
-    plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray", label="Sensor Trend")
-
-    plt.scatter(normal[time_col], normal["Sensor_Value"], color="blue", label="Normal")
-    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="Error")
+    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
+    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
 
     for _, row in error.iterrows():
         plt.text(row[time_col], row["Sensor_Value"] + 0.3,
-                 f"ERROR | FMI {row['Index']}",
-                 fontsize=9, color="red", ha="center")
+                 "ERROR", color="red", ha="center")
 
+    plt.title("Temperature Error Analysis")
     plt.xlabel("Time (seconds)")
-    plt.ylabel("Sensor Value")
-    plt.title("Ambient Sensor – FMI Plot")
+    plt.ylabel("Temperature Value")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.show()
 
 
-# ---------------- CUSTOM THRESHOLD PLOT ----------------
+# ---------------- FMI ANALYSIS ----------------
+def plot_fmi(data):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value", "Sensor_Status", "Index"])
+
+    valid = data[data["Sensor_Status"] == "VALID"]
+    error = data[data["Sensor_Status"] != "VALID"]
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
+
+    plt.scatter(valid[time_col], valid["Sensor_Value"], color="blue", label="VALID")
+    plt.scatter(error[time_col], error["Sensor_Value"], color="red", label="ERROR")
+
+    for _, row in error.iterrows():
+        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
+                 f"ERROR | FMI {row['Index']}", color="red", ha="center")
+
+    plt.title("FMI Diagnostic Analysis")
+    plt.xlabel("Time (seconds)")
+    plt.ylabel("Sensor Value")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+# ---------------- THRESHOLD ANALYSIS ----------------
 def plot_custom_threshold(data, threshold):
     time_col = detect_time_column(data)
+    data = clean_data_until_null(data, ["Sensor_Value"])
 
     normal = data[data["Sensor_Value"] <= threshold]
     fault = data[data["Sensor_Value"] > threshold]
 
     plt.figure(figsize=(10, 5))
-    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray", label="Sensor Trend")
+    plt.plot(data[time_col], data["Sensor_Value"], "--", color="gray")
 
     plt.scatter(normal[time_col], normal["Sensor_Value"], color="blue", label="Below Threshold")
     plt.scatter(fault[time_col], fault["Sensor_Value"], color="red", label="Above Threshold")
 
-    plt.axhline(y=threshold, color="black", linestyle="--", label="Threshold")
+    plt.axhline(threshold, linestyle="--", color="black", label="Threshold")
 
-    for _, row in fault.iterrows():
-        plt.text(row[time_col], row["Sensor_Value"] + 0.3,
-                 "THRESHOLD FAULT", fontsize=9, color="red", ha="center")
-
+    plt.title("Threshold Analysis")
     plt.xlabel("Time (seconds)")
     plt.ylabel("Sensor Value")
-    plt.title("Ambient Sensor – Custom Threshold Plot")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+# ---------------- ROW-WISE ANALYSIS (DEFAULT = SENSOR_STATUS) ----------------
+def plot_rowwise_parameter(data, parameter="Sensor_Status"):
+    time_col = detect_time_column(data)
+    data = clean_data_until_null(data, [parameter, "Sensor_Status"])
+
+    plt.figure(figsize=(10, 5))
+
+    # If Sensor_Status is selected (DEFAULT)
+    if parameter == "Sensor_Status":
+        valid = data[data["Sensor_Status"] == "VALID"]
+        error = data[data["Sensor_Status"] != "VALID"]
+
+        plt.scatter(valid[time_col], [1]*len(valid), color="blue", label="VALID")
+        plt.scatter(error[time_col], [1]*len(error), color="red", label="ERROR")
+
+        plt.yticks([1], ["Sensor Status"])
+        plt.ylabel("Status")
+
+    else:
+        valid = data[data["Sensor_Status"] == "VALID"]
+        error = data[data["Sensor_Status"] != "VALID"]
+
+        plt.plot(data[time_col], data[parameter], "--", color="gray")
+        plt.scatter(valid[time_col], valid[parameter], color="blue", label="VALID")
+        plt.scatter(error[time_col], error[parameter], color="red", label="ERROR")
+
+        for _, row in error.iterrows():
+            plt.text(row[time_col], row[parameter] + 0.3,
+                     "ERROR", color="red", ha="center")
+
+        plt.ylabel(parameter)
+
+    plt.title(f"Row-wise Analysis – {parameter}")
+    plt.xlabel("Time (seconds)")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
